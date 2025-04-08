@@ -188,3 +188,36 @@ jobs:
           - ${{ env.COMMIT_DATE }}
           - ${{ env.COMMIT_MESSAGE }}
           - ${{ env.COMMIT_HASH }}
+
+          
+    - name: Generate Firmware
+      if: steps.compile.outputs.status == 'success'
+      id: generate
+      run: |
+        cd $OPENWRT_PATH/bin/targets/*/*
+        cat config.buildinfo
+        cp *rootfs.tar.gz $GITHUB_WORKSPACE/docker
+        cd $GITHUB_WORKSPACE/docker
+        chmod +x $DOCKER_BUILD && ./$DOCKER_BUILD
+        echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@master
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@master
+      with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Build and Push Docker
+      if: steps.generate.outputs.status == 'success'
+      uses: docker/build-push-action@master
+      with:
+        context: docker
+        platforms: linux/amd64
+        push: true
+        tags: |
+          ${{ env.DOCKER_IMAGE }}:${{ env.TAG }}
+          ${{ env.DOCKER_IMAGE }}
+
